@@ -12,7 +12,7 @@ library(PBSmapping)
 
 hourly <- mutate(rekn, tsRound = round_date(ts, "hours"))
 hourly <- hourly %>% group_by(motusTagID, tsRound) %>% mutate(nHits = length(sig))
-hourly <- select(hourly, finalChile, runLen, nHits, tsRound, motusTagID, recvDeployName, recvDeployLat, recvDeployLon, speciesEN, siteLat, recvProjID) %>% distinct()
+hourly <- select(hourly, finalChile, runLen, nHits, tsRound, motusTagID, recvDeployName, recvDeployLat, recvDeployLon, speciesEN, siteLat, recvProjID, online) %>% distinct()
 hourly <- hourly[with(hourly, order(motusTagID, tsRound)),]
 
 ## As of July 12, tags detected outside of Chile: 27409, 27413, 27419, 27450, 27451, 27457, 27465, 27470
@@ -132,20 +132,25 @@ ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/migDetections.pdf")
 #########################################################################################################
 ## Example of good bird in Chile
 #########################################################################################################
+daily <- rekn %>% group_by(motusTagID, date) %>% mutate(nHits = length(sig))
+daily <- select(daily, finalChile, runLen, nHits, date, motusTagID, recvDeployName, recvDeployLat, recvDeployLon, speciesEN, siteLat, recvProjID, online) %>% distinct()
+daily <- daily[with(daily, order(motusTagID, date)),]
+
 ## for the two migrating birds:
-tmp <- filter(hourly, motusTagID %in% c(27470, 27409), recvProjID == 174)
-ggplot(tmp, aes(tsRound, siteLat, col = siteLat, group = motusTagID)) + geom_point(aes(size = nHits)) + geom_path(col = "black") + facet_grid(motusTagID~.)
+tmp <- filter(daily, motusTagID %in% c(27470, 27409), recvProjID == 174)
+ggplot(tmp, aes(date, siteLat, col = siteLat, group = motusTagID)) + geom_point(aes(size = nHits)) + geom_path(col = "black") + facet_grid(motusTagID~.)
 
 ## for examples of good birds predominantly at E. El. Pantano 26900, 26902, 27434
 ## for examples of good birds predominantly at E. Pepita 26906, 27410, 27420, 27424, 27436, 27441, 27444
 
-tmp <- filter(hourly, recvProjID == 174, motusTagID %in% c(26900, 26902, 27434, 26906, 27410, 27420, 27424, 27436, 27441, 27444))
-ggplot(tmp, aes(tsRound, siteLat, col = siteLat, group = motusTagID)) + geom_point(aes(size = nHits)) + 
-  geom_path(col = "black") + facet_grid(motusTagID~.) + 
-  geom_path(data = filter(tmp, online == FALSE), aes(tsRound, group = siteLat))
+## plot showing daily detections of select birds, plus offline receiver periods
+tmp <- filter(daily, recvProjID == 174, motusTagID %in% c(26900, 26902, 27434, 26906, 27410, 27420, 27424, 27436, 27441, 27444))
+ggplot(tmp, aes(date, siteLat, col = siteLat, group = motusTagID)) + geom_point(aes(size = nHits)) + 
+  geom_path(data = tmp, aes(date, siteLat, group = motusTagID), col = "black") + 
+  geom_path(data = filter(offline, online == "FALSE"), aes(date, siteLat, group = siteLat)) +
+  facet_grid(motusTagID~.)
 
 
-# Mira Mar, dec 9 - june 2, antennas offline  feb 15 - april 6
 
 
 

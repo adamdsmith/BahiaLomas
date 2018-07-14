@@ -1,9 +1,8 @@
-setwd("/Users/zoecrysler/Documents/BSC 2016/REKN")
 library(motus)
 library(tidyr)
 library(imputeTS)
 projnum = 174
-reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE)
+reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "./data")
 rekn <- tbl(reknalltags, "alltags")
 rekn <- rekn %>% collect() %>% as.data.frame()  # for all fields in the df
 rekn <- mutate(rekn, ts = as_datetime(ts, tz = "UTC"),
@@ -29,34 +28,37 @@ rekn <- select(rekn, - sigsd, -noise, -freq, -freqsd, -slop, -tagType, -codeSet,
 ## lets get the last detection in Chile for each tag
 tmp <- filter(rekn, recvProjID == 174) %>% group_by(motusTagID) %>% summarize(finalChile = max(ts))
 rekn <- merge(rekn, tmp, all.x = TRUE)
-## add points for each period receiver was offline
-rekn$online <- "TRUE"
 
+## create dataframe for offline periods
 recvDeployName = "E. Pepita"
+siteLat = "E. Pepita_-52.4693, -69.3849"
 date = seq(as.Date("2018-03-11"), as.Date("2018-04-02"), by = "day")
-PepitaMissing <- data.frame(recvDeployName, date)
+PepitaMissing <- data.frame(recvDeployName, siteLat, date)
 recvDeployName = "E. Pepita"
+siteLat = "E. Pepita_-52.4693, -69.3849"
 date = seq(as.Date("2018-04-14"), as.Date("2018-07-01"), by = "day")
-PepitaEnd <- data.frame(recvDeployName, date)
+PepitaEnd <- data.frame(recvDeployName, siteLat, date)
 
-recvDeployName = "Mira Mar"
+recvDeployName = "MiraMar"
+siteLat = "MiraMar_-52.5473, -69.3191"
 date = seq(as.POSIXct("2018-02-16"), as.POSIXct("2018-04-05"), by="day")
-MiraMarMissing <- data.frame(recvDeployName, date)
+MiraMarMissing <- data.frame(recvDeployName, siteLat, date)
 recvDeployName = "Mira Mar"
+siteLat = "MiraMar_-52.5473, -69.3191"
 date = seq(as.POSIXct("2018-06-02"), as.POSIXct("2018-07-01"), by="day")
-MiraMarEnd <- data.frame(recvDeployName, date)
+MiraMarEnd <- data.frame(recvDeployName, siteLat, date)
 
-recvDeployName = "Pantano"
+recvDeployName = "E. El Pantano"
+siteLat = "E. El Pantano_-52.6858, -69.0608"
 date = seq(as.POSIXct("2018-06-03"), as.POSIXct("2018-07-01"), by="day")
-PantanoEnd <- data.frame(recvDeployName, date)
+PantanoEnd <- data.frame(recvDeployName, siteLat, date)
 
-recvDeployName = "Catalina"
+recvDeployName = "Punta Catalina_-52.5497, -68.7729"
+siteLat = "E. El Pantano_-52.6858, -69.0608"
 date = seq(as.POSIXct("2018-05-23"), as.POSIXct("2018-07-01"), by="day")
-CatalinaEnd <- data.frame(recvDeployName, date)
+CatalinaEnd <- data.frame(recvDeployName, siteLat, date)
 offline <- rbind(PepitaMissing, PepitaEnd, MiraMarMissing, MiraMarEnd, PantanoEnd, CatalinaEnd)
 offline$online <- "FALSE"
-
-#Mira Mar, dec 9 - june 2, antennas offline  feb 15 - april 6
 
 # get receiver metadata
 recvs <- tbl(reknalltags, "recvDeps")
