@@ -2,7 +2,7 @@ library(motus)
 library(tidyr)
 library(imputeTS)
 projnum = 174
-reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "./data")
+reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "/Users/zoecrysler/Documents/BSC 2016/REKN/")
 rekn <- tbl(reknalltags, "alltags")
 rekn <- rekn %>% collect() %>% as.data.frame()  # for all fields in the df
 rekn <- mutate(rekn, ts = as_datetime(ts, tz = "UTC"),
@@ -43,7 +43,7 @@ recvDeployName = "MiraMar"
 siteLat = "MiraMar_-52.5473, -69.3191"
 date = seq(as.POSIXct("2018-02-16"), as.POSIXct("2018-04-05"), by="day")
 MiraMarMissing <- data.frame(recvDeployName, siteLat, date)
-recvDeployName = "Mira Mar"
+recvDeployName = "MiraMar"
 siteLat = "MiraMar_-52.5473, -69.3191"
 date = seq(as.POSIXct("2018-06-02"), as.POSIXct("2018-07-01"), by="day")
 MiraMarEnd <- data.frame(recvDeployName, siteLat, date)
@@ -53,12 +53,14 @@ siteLat = "E. El Pantano_-52.6858, -69.0608"
 date = seq(as.POSIXct("2018-06-03"), as.POSIXct("2018-07-01"), by="day")
 PantanoEnd <- data.frame(recvDeployName, siteLat, date)
 
-recvDeployName = "Punta Catalina_-52.5497, -68.7729"
-siteLat = "E. El Pantano_-52.6858, -69.0608"
-date = seq(as.POSIXct("2018-05-23"), as.POSIXct("2018-07-01"), by="day")
+recvDeployName = "Punta Catalina"
+siteLat = "Punta Catalina_-52.5497, -68.7729"
+date = seq(as.POSIXct("2018-03-22"), as.POSIXct("2018-07-01"), by="day")
 CatalinaEnd <- data.frame(recvDeployName, siteLat, date)
-offline <- rbind(PepitaMissing, PepitaEnd, MiraMarMissing, MiraMarEnd, PantanoEnd, CatalinaEnd)
+offline <- rbind(PepitaMissing, MiraMarMissing)
 offline$online <- "FALSE"
+end <- rbind(PepitaEnd, MiraMarEnd, PantanoEnd, CatalinaEnd)
+end$start <- "FALSE"
 
 # get receiver metadata
 recvs <- tbl(reknalltags, "recvDeps")
@@ -85,7 +87,7 @@ dateRange <- lubridate::interval(as.POSIXct("2018-01-01"),
 recvs$active <- lubridate::int_overlaps(siteOp, dateRange)
 
 ## get tide data
-tide <- read.csv("/Users/zoecrysler/Documents/BSC 2016/REKN/tides_formatted.csv")
+tide <- read.csv("./data/tides_formatted.csv")
 tide$day <- as.numeric(as.character(tide$day))
 tide <- tide[!is.na(tide$day),]
 ## deal with repeated columns of height and time
@@ -110,7 +112,12 @@ tmp <- seq(as.POSIXct("2018-01-01 00:00:00"), as.POSIXct("2018-06-30 24:00:00"),
 tmp <- as.data.frame(tmp)
 tmp <- rename(tmp, tsRound = tmp)
 tide <- merge(tide, tmp, all = TRUE)
-tide$date <- format(tide$tsRound, "%Y-%m-%d")
+## NOTE! Here the date won't match ts to keep the coefficient with the correct date after time change!
+tide <- mutate(tide, day = na.locf(day),
+               Month = na.locf(Month),
+               Year = na.locf(Year),
+               date = paste(Year, Month, day, sep = "-"),
+               date = as.Date(date))
 tide <- tide[with(tide, order(tsRound)),]
 tide <- tide %>% mutate(linear = na.interpolation(height),
                         spline = na.interpolation(height, option = "spline"),
@@ -240,6 +247,8 @@ visits <- visits %>% mutate(visitLength = as.numeric(difftime(maxts, mints), uni
                             date = as.Date(mints),
                             tsRound = as.POSIXct(round(mints, "hours")))
 visits <- merge(visits, select(recvs, recvDeployName, recvDeployID, recvLat, recvLon, recvStart, recvEnd, recvProjID), by = "recvDeployID", all.x = TRUE)
+visits <- rename(visits, recvDeployName = recvDeployName.x)
+visits <- select(visits, -recvDeployName.y)
 ## get distance travelled for the visit
 visits <- visits[with(visits, order(as.numeric(motusTagID, mints))),]
 visits$distance <- with(visits, latLonDist(lag(recvLat), lag(recvLon), recvLat, recvLon)) ## distance for a visit is the distance it took to get there from the last station
@@ -247,7 +256,8 @@ visits$distance <- with(visits, latLonDist(lag(recvLat), lag(recvLon), recvLat, 
 visits <- rename(visits, recvDeployLat = recvLat, recvDeployLon = recvLon, ts = mints) ## need to rename, need ot fix this in function code!
 visits <- timeToSunriset(visits, units = "min")
 visits <- rename(visits, recvLat = recvDeployLat, recvLon = recvDeployLon, mints = ts) ## need to rename, need ot fix this in function code!
-visits <- merge(visits, select(tide, tsRound, linear, coefficient, coefficientCategory), by = "tsRound", all.x = TRUE)
+visits <- merge(visits, select(tide, tsRound, linear), by = "tsRound", all = TRUE)
+visits <- distinct(merge(visits, select(tide, date, coefficient), by = "date", all = TRUE))
 day <- filter(visits, mints > sunrise & mints < sunset)
 day$period <- "day"
 night <- filter(visits, mints < sunrise | mints > sunset)
