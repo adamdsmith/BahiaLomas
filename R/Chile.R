@@ -2,6 +2,7 @@ library(motus)
 library(tidyr)
 library(imputeTS)
 projnum = 174
+reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "C:/Users/cryslerz/Documents/motusDownloads")
 reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "/Users/zoecrysler/Documents/BSC 2016/REKN/")
 rekn <- tbl(reknalltags, "alltags")
 rekn <- rekn %>% collect() %>% as.data.frame()  # for all fields in the df
