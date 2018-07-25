@@ -75,6 +75,10 @@ ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/ChileMap_outline.pdf")
 #########################################################################################################
 ### Map of migration, potentials 27470, 27409 
 #########################################################################################################
+ggplot(filter(rekn, runLen > 2, recvProjID != 174), 
+       aes(ts, sig, group = motusTagID, col = recvDeployName)) + 
+  geom_point() + theme_bw() + facet_wrap(~motusTagID, scales = "free")
+
 ggplot(filter(hourly, runLen > 2, motusTagID %in% c(27409, 27413, 27419, 27450, 27451, 27457, 27465, 27470)), 
        aes(tsRound, siteLat, group = motusTagID, col = as.factor(motusTagID))) + 
   geom_point() + geom_path() + theme(legend.position = "none") + theme_bw()
@@ -198,7 +202,19 @@ ggplot(visits, aes(recvDeployName, date)) +
        y = NULL, x = NULL)
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/violinDetections_notscaled.pdf")
 
-  
+## histogram of visit length
+tmp <- filter(visits, speciesEN == "Red Knot", recvDeployName != "Punta Catalina", date < as.Date("2018-06-01")) 
+tmp <- merge(tmp, offline, all = TRUE)
+tmp <- merge(tmp, end, all = TRUE)
+ggplot(tmp, aes(date, visitLength)) + 
+  geom_bar(stat = "identity", aes(fill = recvDeployName)) +
+  geom_path(data = filter(tmp, start == "FALSE"), aes(x = date, y = 0), col = "black", linetype = "longdash") +
+  geom_path(data = filter(tmp, online == "FALSE"), aes(x = date, y = 0), col = "black", linetype = "longdash") +
+  theme_bw() + facet_grid(recvDeployName~., scales = "free") + 
+  theme(legend.position = "none", text = element_text(size = 8), plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Sum of total time for each tag spent at each station per day", 
+       y = "Cumulative time of all tags at a station per day (mins)", x = NULL)
+ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/violinDetections.pdf")
 
 
 
