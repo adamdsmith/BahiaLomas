@@ -58,7 +58,12 @@ recvDeployName = "Punta Catalina"
 siteLat = "Punta Catalina_-52.5497, -68.7729"
 date = seq(as.POSIXct("2018-03-22"), as.POSIXct("2018-07-01"), by="day")
 CatalinaEnd <- data.frame(recvDeployName, siteLat, date)
-offline <- rbind(PepitaMissing, MiraMarMissing)
+recvDeployName = "Punta Catalina"
+siteLat = "Punta Catalina_-52.5497, -68.7729"
+date = seq(as.POSIXct("2018-01-01"), as.POSIXct("2018-02-25"), by="day")
+CatalinaMissing <- data.frame(recvDeployName, siteLat, date)
+
+offline <- rbind(PepitaMissing, MiraMarMissing, CatalinaMissing)
 offline$online <- "FALSE"
 end <- rbind(PepitaEnd, MiraMarEnd, PantanoEnd, CatalinaEnd)
 end$start <- "FALSE"
