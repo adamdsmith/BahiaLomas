@@ -1,6 +1,8 @@
 library(motus)
 library(tidyr)
 library(imputeTS)
+## run latLongDist.R and rad.R
+
 projnum = 174
 reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "C:/Users/cryslerz/Documents/motusDownloads")
 reknalltags <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "/Users/zoecrysler/Documents/BSC 2016/REKN/")
@@ -30,7 +32,7 @@ rekn <- select(rekn, - sigsd, -noise, -freq, -freqsd, -slop, -tagType, -codeSet,
 tmp <- filter(rekn, recvProjID == 174) %>% group_by(motusTagID) %>% summarize(finalChile = max(ts))
 rekn <- merge(rekn, tmp, all.x = TRUE)
 
-## create dataframe for offline periods
+## create dataframes for offline periods/no data
 recvDeployName = "E. Pepita"
 siteLat = "E. Pepita_-52.4693, -69.3849"
 date = seq(as.Date("2018-03-11"), as.Date("2018-04-02"), by = "day")
@@ -130,6 +132,79 @@ tide <- tide %>% mutate(linear = na.interpolation(height),
                         stine = na.interpolation(height, option = "stine"),
                         coefficient = na.locf(coefficient))## fill in coefficient for each entry
 
+
+## break down by periods of detection
+##, ts > as.POSIXct("2018-02-26"), ts < as.POSIXct("2018-03-13"), speciesEN=="Red Knot"
+visits <- filter(rekn, recvProjID == 174) %>% group_by(speciesEN, motusTagID, recvDeployName, recvDeployID, runID, batchID) %>%
+  summarize(mints = min(ts),
+            maxts = max(ts),
+            numHits = length(motusTagID))
+visits <- as.data.frame(visits)
+visits <- visits[with(visits, order(motusTagID, mints)),]
+
+visits <- visits %>%
+  mutate(diffsec = as.numeric(mints) - lag(as.numeric(maxts)),
+         diffmin = as.numeric(diffsec/60)) %>% as.data.frame
+
+## assign a group number for each group of hits at a station per tag by time
+visits <- visits[with(visits, order(motusTagID, mints)),] ## first make sure it's ordered correctly
+#visits$count1 <- cumsum(c(0,as.numeric(diff(as.factor(visits$recvDeployName)))!=0))
+visits <- visits %>% group_by(motusTagID) %>% mutate(count1 = cumsum(c(1,as.numeric(diff(as.factor(recvDeployName)))!=0)))
+
+## assign a group number each time the time difference from one runID to another is > 5
+visits <- visits[with(visits, order(motusTagID, mints)),] ## first make sure it's ordered correctly
+visits$diffmin[is.na(visits$diffmin)] <- 0 ## set NA in time differences to 0
+#visits$count2 <- cumsum(c(0,as.numeric(diff(visits$diffmin))>=5))
+visits <- visits %>% group_by(motusTagID, count1) %>% mutate(count2 = c(cumsum(diffmin >5)),
+                                                             visitID = paste(count1, count2, sep = ".")) ## now get one value to number each variable
+
+## now lets get the total time for each "visit"
+visits <- visits %>% group_by(speciesEN, motusTagID, recvDeployName, recvDeployID, visitID) %>%
+  summarize(mints = min(mints),
+            maxts = max(maxts))
+visits <- visits %>% mutate(visitLength = as.numeric(difftime(maxts, mints), units = "mins"),
+                            date = as.Date(mints),
+                            tsRound = as.POSIXct(round(mints, "hours")))
+visits <- merge(visits, select(recvs, recvDeployName, recvDeployID, recvLat, recvLon, recvStart, recvEnd, recvProjID), by = "recvDeployID", all.x = TRUE)
+visits <- rename(visits, recvDeployName = recvDeployName.x)
+visits <- select(visits, -recvDeployName.y)
+## get distance travelled for the visit
+visits <- visits[with(visits, order(as.numeric(motusTagID, mints))),]
+visits$distance <- with(visits, latLonDist(lag(recvLat), lag(recvLon), recvLat, recvLon)) ## distance for a visit is the distance it took to get there from the last station
+## add sunrise info
+visits <- rename(visits, recvDeployLat = recvLat, recvDeployLon = recvLon, ts = mints) ## need to rename, need ot fix this in function code!
+visits <- timeToSunriset(visits, units = "min")
+visits <- rename(visits, recvLat = recvDeployLat, recvLon = recvDeployLon, mints = ts) ## need to rename, need ot fix this in function code!
+visits <- merge(visits, select(tide, tsRound, linear), by = "tsRound", all = TRUE)
+visits <- distinct(merge(visits, select(tide, date, coefficient), by = "date", all = TRUE))
+day <- filter(visits, mints > sunrise & mints < sunset)
+day$period <- "day"
+night <- filter(visits, mints < sunrise | mints > sunset)
+night$period <- "night"
+visits <- rbind(day, night)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#########################################################################################################
+## EVERYTHING BEYOND HERE CAN BE IGNORED 
+#########################################################################################################
+
 ## length of overall stay
 mean <- rekn %>% group_by(motusTagID) %>% summarize(maxDet = max(ts),
                                                     minDet = min(ts),
@@ -218,57 +293,6 @@ ggplot(filter(hourly, motusTagID%in% c(27470)),
         legend.title = element_blank(),
         legend.position = "bottom") + theme_bw()
 
-
-## break down by periods of detection
-##, ts > as.POSIXct("2018-02-26"), ts < as.POSIXct("2018-03-13"), speciesEN=="Red Knot"
-visits <- filter(rekn, recvProjID == 174) %>% group_by(speciesEN, motusTagID, recvDeployName, recvDeployID, runID, batchID) %>%
-  summarize(mints = min(ts),
-            maxts = max(ts),
-            numHits = length(motusTagID))
-visits <- as.data.frame(visits)
-visits <- visits[with(visits, order(motusTagID, mints)),]
-
-visits <- visits %>%
-  mutate(diffsec = as.numeric(mints) - lag(as.numeric(maxts)),
-         diffmin = as.numeric(diffsec/60)) %>% as.data.frame
-
-
-## assign a group number for each group of hits at a station per tag by time
-visits <- visits[with(visits, order(motusTagID, mints)),] ## first make sure it's ordered correctly
-#visits$count1 <- cumsum(c(0,as.numeric(diff(as.factor(visits$recvDeployName)))!=0))
-visits <- visits %>% group_by(motusTagID) %>% mutate(count1 = cumsum(c(1,as.numeric(diff(as.factor(recvDeployName)))!=0)))
-
-## assign a group number each time the time difference from one runID to another is > 5
-visits <- visits[with(visits, order(motusTagID, mints)),] ## first make sure it's ordered correctly
-visits$diffmin[is.na(visits$diffmin)] <- 0 ## set NA in time differences to 0
-#visits$count2 <- cumsum(c(0,as.numeric(diff(visits$diffmin))>=5))
-visits <- visits %>% group_by(motusTagID, count1) %>% mutate(count2 = c(cumsum(diffmin >5)),
-                                                             visitID = paste(count1, count2, sep = ".")) ## now get one value to number each variable
-
-## now lets get the total time for each "visit"
-visits <- visits %>% group_by(speciesEN, motusTagID, recvDeployName, recvDeployID, visitID) %>%
-  summarize(mints = min(mints),
-            maxts = max(maxts))
-visits <- visits %>% mutate(visitLength = as.numeric(difftime(maxts, mints), units = "mins"),
-                            date = as.Date(mints),
-                            tsRound = as.POSIXct(round(mints, "hours")))
-visits <- merge(visits, select(recvs, recvDeployName, recvDeployID, recvLat, recvLon, recvStart, recvEnd, recvProjID), by = "recvDeployID", all.x = TRUE)
-visits <- rename(visits, recvDeployName = recvDeployName.x)
-visits <- select(visits, -recvDeployName.y)
-## get distance travelled for the visit
-visits <- visits[with(visits, order(as.numeric(motusTagID, mints))),]
-visits$distance <- with(visits, latLonDist(lag(recvLat), lag(recvLon), recvLat, recvLon)) ## distance for a visit is the distance it took to get there from the last station
-## add sunrise info
-visits <- rename(visits, recvDeployLat = recvLat, recvDeployLon = recvLon, ts = mints) ## need to rename, need ot fix this in function code!
-visits <- timeToSunriset(visits, units = "min")
-visits <- rename(visits, recvLat = recvDeployLat, recvLon = recvDeployLon, mints = ts) ## need to rename, need ot fix this in function code!
-visits <- merge(visits, select(tide, tsRound, linear), by = "tsRound", all = TRUE)
-visits <- distinct(merge(visits, select(tide, date, coefficient), by = "date", all = TRUE))
-day <- filter(visits, mints > sunrise & mints < sunset)
-day$period <- "day"
-night <- filter(visits, mints < sunrise | mints > sunset)
-night$period <- "night"
-visits <- rbind(day, night)
 
 
 ## max number of days monitored

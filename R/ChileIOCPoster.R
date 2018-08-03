@@ -49,7 +49,7 @@ p + geom_point(data=filter(recvs, recvProjID == 174), aes(recvLon, recvLat), pch
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/ChileMap_google.pdf")
 
 ## outline map
-## NOT GOOD, NOT ENOUGH DETAIL
+## No good - not enough detail
 xlim = c(-71, -67)
 ylim = c(-53, -52)
 worldmap1 = clipPolys(worldmap, xlim=xlim, ylim=ylim, keepExtra = TRUE)
