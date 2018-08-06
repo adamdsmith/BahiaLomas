@@ -28,18 +28,14 @@ rekn <- within(rekn, siteLat <- reorder(siteLat, recvDeployLat))
 rekn <- select(rekn, - sigsd, -noise, -freq, -freqsd, -slop, -tagType, -codeSet, -tagModel, -tagLifespan, -nomFreq,
                -pulseLen, - markerType, -markerNumber, -tagDeployComments, - tagDeployAlt, - recvDeployAlt, 
                - recvSiteName, -antHeight, -speciesFR, - speciesSci, -speciesGroup)
-## lets get the last detection in Chile for each tag
+## lets get the last detection in Chile for each tag, excluding runLen = 2 because of plots for poster
 tmp <- filter(rekn, recvProjID == 174) %>% group_by(motusTagID) %>% summarize(finalChile = max(ts))
 rekn <- merge(rekn, tmp, all.x = TRUE)
 
 ## create dataframes for offline periods/no data
 recvDeployName = "E. Pepita"
 siteLat = "E. Pepita_-52.4693, -69.3849"
-date = seq(as.Date("2018-03-11"), as.Date("2018-04-02"), by = "day")
-PepitaMissing <- data.frame(recvDeployName, siteLat, date)
-recvDeployName = "E. Pepita"
-siteLat = "E. Pepita_-52.4693, -69.3849"
-date = seq(as.Date("2018-04-14"), as.Date("2018-07-01"), by = "day")
+date = seq(as.Date("2018-05-22"), as.Date("2018-07-01"), by = "day")
 PepitaEnd <- data.frame(recvDeployName, siteLat, date)
 
 recvDeployName = "MiraMar"
@@ -65,7 +61,7 @@ siteLat = "Punta Catalina_-52.5497, -68.7729"
 date = seq(as.POSIXct("2018-01-01"), as.POSIXct("2018-02-25"), by="day")
 CatalinaMissing <- data.frame(recvDeployName, siteLat, date)
 
-offline <- rbind(PepitaMissing, MiraMarMissing, CatalinaMissing)
+offline <- rbind(MiraMarMissing, CatalinaMissing)
 offline$online <- "FALSE"
 end <- rbind(PepitaEnd, MiraMarEnd, PantanoEnd, CatalinaEnd)
 end$start <- "FALSE"

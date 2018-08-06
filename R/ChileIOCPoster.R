@@ -71,29 +71,32 @@ ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/ChileMap_outline.pdf")
 #########################################################################################################
 ### Map of migration, potentials 27470, 27409, 27418, 27480, 27450, 27451
 #########################################################################################################
-ggplot(filter(rekn, runLen > 2, recvProjID != 174), 
+ggplot(filter(rekn, runLen > 2, recvProjID != 174, recvDeployLon < 0), 
        aes(ts, sig, group = motusTagID, col = recvDeployName)) + 
   geom_point() + theme_bw() + facet_wrap(~motusTagID, scales = "free")
 
-ggplot(filter(hourly, runLen > 2, motusTagID %in% c(27409, 27413, 27419, 27450, 27451, 27457, 27465, 27470))) 
+ggplot(filter(hourly, runLen > 2, motusTagID %in% c(27409, 27413, 27418, 27450, 27451, 27457, 27465, 27470))) 
 # list of potential migrants
 #unique(filter(hourly, recvProjID != 174, runLen >2, tsRound > finalChile, recvDeployLon < 0)$motusTagID)
 ## As of July 23, tags detected outside of Chile: 27409, 27418, 27450, 27451, 27470, 27480
 ## remove false hits
-# 27409: lots of runLen <2, runID 27696421 is in the Bahamas, a day after and  day before FL detections, could be true?
+# 27409: lots of runLen <2, runID 27696421 and 29063715 is in the Bahamas, a day after and  day before FL detections, could be true?
+# also 29034130 and 29034108 in Michigan
 # 27418:good at fortescue
 # 27450:maybe one FL station
 # 27451: brighton detections don't make sense (runID 26775020)
 # 27470: good
 # 27480: Hudsonian Godwit, good
+# 27401 - no Chile detections
+# 27465 - bad detections at RARE
 
 ggplot(filter(tmp, runLen > 2, motusTagID %in% c(27409, 27418, 27450, 27451, 27470, 27480)), aes(tsRound, siteLat, group = motusTagID, col = as.factor(motusTagID))) + 
   geom_point() + geom_path() + theme(legend.position = "none") + theme_bw() + facet_wrap(~motusTagID, scales = "free")
 
-tmp = filter(rekn, motusTagID %in% c(27409, 27418, 27450, 27451, 27470, 27480), recvDeployLon < 0, (ts > finalChile-3600 | ts > finalChile))
+tmp = filter(rekn, motusTagID %in% c(27409, 27413, 27418, 27450, 27451, 27465, 27470, 27480), recvDeployLon < 0, (ts > finalChile-3600 | ts > finalChile))
 tmp <- tmp[with(tmp, order(motusTagID, tsRound)),]
 
-ggplot(filter(tmp, motusTagID == 27451, runLen > 2), aes(ts, sig, col = as.factor(runLen))) + geom_point() + theme_bw() + facet_grid(siteLat~.)
+ggplot(filter(tmp, motusTagID == 27409, runLen > 2), aes(ts, sig, col = as.factor(runLen))) + geom_point() + theme_bw() + facet_grid(siteLat~.)
 gmap <-  get_map(location = c(lon = -70, lat = 0), # lon/lat to centre map over
                  maptype = "satellite", # select maptype
                  source = "google",
@@ -104,9 +107,10 @@ p + geom_path(data=filter(tmp, motusTagID == 27480, runLen > 2),
   theme_bw() + labs(color = "Tag ID") +
   theme(axis.title = element_blank(), legend.position = "bottom", text = element_text(size = 8))
 
-hourly <- filter(hourly, motusTagID %in% c(27409, 27418, 27450, 27451, 27470, 27480)) ## keep migrating birds
-tmp <- filter(hourly, !(runID %in% c(27696421, 26775020))) ## remove certain runIDs (explained above)
+hourly <- filter(hourly, motusTagID %in% c(27409, 27413, 27418, 27450, 27451, 27470, 27480)) ## keep migrating birds
+tmp <- filter(hourly, !(runID %in% c(27696421, 26775020, 29063715, 29034130, 29034108))) ## remove certain runIDs (explained above)
 tmp <- filter(tmp, (tsRound > finalChile-3600 | tsRound > finalChile), !(runLen <= 2 & recvProjID != 174)) ## keep only last hour of Chile data, and remove runLen < 2 with the exception of chile stations
+tmp <- tmp[with(tmp, order(motusTagID, tsRound)),]
 
 ## latitude plot
 ggplot(tmp, aes(tsRound, recvDeployLat, col = as.factor(motusTagID), shape = speciesEN, group = motusTagID)) + 
@@ -133,7 +137,7 @@ ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/migMap_google.pdf")
 
 ## outline map
 xlim = c(-125, -25)
-ylim = c(-58, 45)
+ylim = c(-55, 47)
 setnames(worldmap, c("X","Y","PID","POS","region","subregion"))
 worldmap1 = clipPolys(worldmap, xlim=xlim, ylim=ylim, keepExtra = TRUE)
 ggplot(na.lakes, aes(long, lat)) + coord_map(xlim = xlim, ylim = ylim) +
@@ -154,7 +158,7 @@ ggsave("C:/Users/cryslerz/Documents/RProjects/ChilePlots/migMap_outline.pdf")
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/migMap_outline.pdf")
 
 ## plot showing last half hour in Chile plus migrations for the two good tags
-tmp <- filter(hourly, runLen > 2, motusTagID %in% c(27409, 27418, 27450, 27451, 27470, 27480))
+tmp <- filter(hourly, !(runLen <= 2 & recvProjID != 174), motusTagID %in% c(27409, 27413, 27418, 27450, 27451, 27470, 27480))
 tmp <- tmp[with(tmp, order(motusTagID, tsRound)),]
 
 ggplot(filter(tmp, tsRound > (finalChile - 3600)) , aes(tsRound, siteLat, group = motusTagID, col = as.factor(motusTagID))) + 
@@ -174,7 +178,7 @@ ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/migDetections.pdf")
 ## Florida Birds
 #########################################################################################################
 ## 27409, 27450, 27470
-tmp <- filter(hourly, motusTagID %in% c(27409, 27450, 27470), runLen >2)
+tmp <- filter(hourly, motusTagID %in% c(27409, 27450, 27470),!(runID %in% c(27696421, 26775020, 29063715, 29034130, 29034108)), runLen >2)
 tmp <- tmp[with(tmp, order(motusTagID, tsRound)),]
 
 ## just FL detections
@@ -217,6 +221,7 @@ ggplot(tmp, aes(date, siteLat, col = siteLat, group = motusTagID)) + geom_point(
 
 ## plot showing daily detections of select birds, plus offline receiver periods
 tmp <- filter(daily, recvProjID == 174, motusTagID %in% c(27434, 26906, 27410, 27420, 27424, 27436))
+offline$date <- as_date(offline$date)
 ggplot(tmp, aes(date, recvDeployName, col = recvDeployName, group = motusTagID)) + geom_point(aes(size = nHits)) + 
   geom_path(data = filter(offline, online == "FALSE"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
   geom_path(data = filter(end, start == "FALSE"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
@@ -323,7 +328,8 @@ ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/PepitaUseTideHeight.pdf")
 
 
 
-
+ggplot(filter(prop, recvDeployName == "E. Pepita", date < as.Date("2018-02-01")), aes(visitLength, coefficient)) + 
+  geom_point() + scale_y_continuous(trans ="log2")
 
 
 #########################################################################################################
