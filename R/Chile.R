@@ -11,7 +11,9 @@ rekn <- rekn %>% collect() %>% as.data.frame()  # for all fields in the df
 rekn <- mutate(rekn, ts = as_datetime(ts, tz = "UTC"),
                tagDeployEnd = as_datetime(tagDeployEnd, tz = "UTC"),
                tagDeployStart = as_datetime(tagDeployStart, tz = "UTC"),
-               date = as.Date(ts))
+               date = as.Date(ts),
+               sp = ifelse(speciesEN == "Red Knot", "REKN", "HUGO"),
+               newID = paste(sp, motusTagID, sep = "_"))
 rekn$tsRound <- as.POSIXct(round(rekn$ts, "hours"))
 
 #rekn <- filter(rekn, recvProjID == 174)
@@ -29,7 +31,8 @@ rekn <- select(rekn, - sigsd, -noise, -freq, -freqsd, -slop, -tagType, -codeSet,
                -pulseLen, - markerType, -markerNumber, -tagDeployComments, - tagDeployAlt, - recvDeployAlt, 
                - recvSiteName, -antHeight, -speciesFR, - speciesSci, -speciesGroup)
 ## lets get the last detection in Chile for each tag, excluding runLen = 2 because of plots for poster
-tmp <- filter(rekn, recvProjID == 174) %>% group_by(motusTagID) %>% summarize(finalChile = max(ts))
+tmp <- filter(rekn, recvProjID == 174) %>% group_by(motusTagID) %>% summarize(finalChile = max(ts),
+                                                                              firstChile = min(ts))
 rekn <- merge(rekn, tmp, all.x = TRUE)
 
 ## create dataframes for offline periods/no data
@@ -180,7 +183,28 @@ night$period <- "night"
 visits <- rbind(day, night)
 
 
+## station data
+projnum = 3
+qc <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "C:/Users/cryslerz/Documents/motusDownloads")
+qc <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "/Users/zoecrysler/Documents/BSC 2016/REKN/")
+qc <- tbl(qc, "alltags")
+qc <- qc %>% filter(motusTagID == 26557) %>% collect() %>% as.data.frame()  # for all fields in the df
+qc <- mutate(qc, ts = as_datetime(ts, tz = "UTC"),
+             tagDeployEnd = as_datetime(tagDeployEnd, tz = "UTC"),
+             tagDeployStart = as_datetime(tagDeployStart, tz = "UTC"),
+             date = as.Date(ts))
+qc$tsRound <- as.POSIXct(round(qc$ts, "hours"))
 
+projnum = 47
+niles <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "C:/Users/cryslerz/Documents/motusDownloads")
+niles <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "/Users/zoecrysler/Documents/BSC 2016/REKN/")
+niles <- tbl(nilesalltags, "alltags")
+niles <- niles %>% filter(motusTagID == 26557) %>% collect() %>% as.data.frame()  # for all fields in the df
+niles <- mutate(niles, ts = as_datetime(ts, tz = "UTC"),
+                tagDeployEnd = as_datetime(tagDeployEnd, tz = "UTC"),
+                tagDeployStart = as_datetime(tagDeployStart, tz = "UTC"),
+                date = as.Date(ts))
+niles$tsRound <- as.POSIXct(round(niles$ts, "hours"))
 
 
 
