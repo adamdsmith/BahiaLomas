@@ -70,6 +70,7 @@ end <- rbind(PepitaEnd, MiraMarEnd, PantanoEnd, CatalinaEnd)
 end$start <- "FALSE"
 
 # get receiver metadata
+metadata(recvs)
 recvs <- tbl(reknalltags, "recvDeps")
 recvs <- recvs %>% collect() %>% as.data.frame()  # for all fields in the df
 recvs <- mutate(recvs, tsStart = as_datetime(tsStart, tz = "UTC"),
@@ -198,8 +199,8 @@ qc$tsRound <- as.POSIXct(round(qc$ts, "hours"))
 projnum = 47
 niles <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "C:/Users/cryslerz/Documents/motusDownloads")
 niles <- tagme(projnum, update = TRUE, forceMeta = TRUE, dir = "/Users/zoecrysler/Documents/BSC 2016/REKN/")
-niles <- tbl(nilesalltags, "alltags")
-niles <- niles %>% filter(motusTagID == 26557) %>% collect() %>% as.data.frame()  # for all fields in the df
+niles <- tbl(niles, "alltags")
+niles <- niles %>% filter(motusTagID %in% c(27333, 27323, 25098)) %>% collect() %>% as.data.frame()  # for all fields in the df
 niles <- mutate(niles, ts = as_datetime(ts, tz = "UTC"),
                 tagDeployEnd = as_datetime(tagDeployEnd, tz = "UTC"),
                 tagDeployStart = as_datetime(tagDeployStart, tz = "UTC"),

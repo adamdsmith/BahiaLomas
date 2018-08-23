@@ -4,6 +4,9 @@ library(data.table)
 library(PBSmapping)
 library(ggrepel)
 
+# colour blind palette
+cbbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#000000", "#0072B2", "#D55E00", "#CC79A7", "#F0E442", "#999999")
+
 ## all tags:
 #26895, 26897, 26899, 26900, 26901, 26902, 26903, 26904, 26905, 26906, 27401, 27409, 27410, 27411, 27412, 27413, 
 #27414, 27415, 27417, 27418, 27419, 27420, 27422, 27424, 27425, 27426, 27427, 27428, 27429, 27430, 27431, 27432, 
@@ -17,7 +20,15 @@ tmp <- filter(rekn, runLen >2, recvDeployLon < 0, !(runID %in% c(27696421, 26775
 tmp <- filter(tmp, !(recvProjID != 174 & ts < finalChile)) ## remove migration detections occuring before last detection in Chile
 tmp <- tmp %>% group_by(motusTagID) %>% mutate(firstMig = min(ts))
 tmp <- filter(tmp, ts == firstMig)
-firstMig <- select(tmp, firstMig, motusTagID, recvDeployLat, recvDeployLon, newID, motusTagID) %>% distinct()
+firstMig <- select(tmp, firstMig, motusTagID, recvDeployLat, recvDeployLon, newID, motusTagID, sp, finalChile) %>% distinct()
+firstMig <- mutate(firstMig, depart = format(finalChile, "%b %d"),
+                 land = format(firstMig, "%b %d"),
+                 taglab = paste(depart, land, sep = " - "),
+                 diff = as.numeric(difftime(firstMig, finalChile), units = "days"),
+                 diff = round(diff,digits=0),
+                 taglab = paste(taglab, diff, sep = "; "),
+                 taglab = paste(taglab, "d", sep = ""),
+                 taglab = paste(sp, taglab, sep = " "))
 mig <- filter(rekn, ts == finalChile, motusTagID %in% c(27409, 27413, 27418, 27450, 27451, 27470, 27480))
 mig <- merge(tmp, mig, all = TRUE)
 mig <- select(mig, motusTagID, tagDeployID, ts, recv, recvDeployName, recvDeployLat, recvDeployLon, 
@@ -27,11 +38,13 @@ trans <- siteTrans(mig)
 
 hourly <- mutate(rekn, tsRound = round_date(ts, "hours"))
 hourly <- hourly %>% group_by(motusTagID, tsRound) %>% mutate(nHits = length(sig))
-hourly <- select(hourly, finalChile, runLen, runID, nHits, tsRound, motusTagID, recvDeployName, recvDeployLat, recvDeployLon, speciesEN, siteLat, recvProjID, newID, firstMig) %>% distinct()
+hourly <- select(hourly, finalChile, runLen, runID, nHits, tsRound, motusTagID, recvDeployName, recvDeployLat, recvDeployLon, speciesEN, sp, siteLat, recvProjID, newID, firstMig) %>% distinct()
 hourly <- filter(hourly, recvDeployLon < 0) ## get rid of European detections
 hourly <- filter(hourly, !(recvProjID != 174 & tsRound < finalChile)) ## remove migration detections occuring before last detection in Chile
 hourly <- hourly[with(hourly, order(motusTagID, tsRound)),]
 
+
+#
 ## base maps
 na.lakes <- map_data(map = "lakes")
 na.lakes <- mutate(na.lakes, long = long - 360)
@@ -50,6 +63,40 @@ QCsmall <- QCsmall[with(QCsmall, order(motusTagID, tsRound)),]
 QCmig <- filter(qc, recvProjID ==174) %>% group_by(motusTagID) %>% mutate(firstMig = min(ts))
 QCmig <- select(QCmig, firstMig, motusTagID, recvDeployLat, recvDeployLon) %>% 
   mutate(newID = paste("QC_REKN", motusTagID, sep="_")) %>% distinct() %>% filter(recvDeployLat =="-52.5473")
+tmp <- filter(qc, recvProjID !=174, runLen>2, recvDeployLon < 0) %>% group_by(motusTagID) %>% mutate(dep = max(ts))
+tmp <- select(tmp, dep, motusTagID, hitID) %>% 
+  mutate(newID = paste("QC_REKN", motusTagID, sep="_")) %>% distinct() %>% filter(hitID ==280391536)
+QCmig <- merge(QCmig, tmp, all = TRUE)
+QCmig <- mutate(QCmig, depart = format(dep, "%b %d"),
+                 land = format(firstMig, "%b %d"),
+                 taglab = paste(depart, land, sep = " - "),
+                 diff = as.numeric(difftime(firstMig, dep), units = "days"),
+                 diff = round(diff,digits=0),
+                 taglab = paste(taglab, diff, sep = "; "),
+                 taglab = paste(taglab, "d", sep = ""),
+                 taglab = paste("REKN", taglab, sep = " "))
+
+# Niles Birds
+nilesSmall <- filter(niles, runLen >2)
+nilesSmall <- nilesSmall %>% group_by(motusTagID, tsRound) %>% mutate(nHits = length(sig),
+                                                                newID = paste("Niles_REKN", motusTagID, sep="_"))
+nilesSmall <- select(nilesSmall, runLen, runID, nHits, tsRound, motusTagID, recvDeployName, recvDeployLat, recvDeployLon, speciesEN, recvProjID, newID) %>% distinct()
+nilesSmall <- filter(nilesSmall, recvDeployLon < 0) ## get rid of European detections
+nilesSmall <- nilesSmall[with(nilesSmall, order(motusTagID, tsRound)),]
+nilesMig <- filter(niles, recvProjID ==174) %>% group_by(motusTagID) %>% mutate(firstMig = min(ts))
+nilesMig <- select(nilesMig, firstMig, motusTagID, recvDeployLat, recvDeployLon) %>% 
+  mutate(newID = paste("Niles_REKN", motusTagID, sep="_")) %>% distinct()
+tmp <- filter(niles, recvProjID !=174, runLen > 2, recvDeployLon < 0) %>% group_by(motusTagID) %>% mutate(dep = max(ts))
+tmp <- filter(tmp, ts == dep) %>% select(dep, motusTagID, hitID, ts) %>% distinct()
+nilesMig <- merge(nilesMig, tmp, all = TRUE)
+nilesMig <- mutate(nilesMig, depart = format(dep, "%b %d"),
+                land = format(firstMig, "%b %d"),
+                taglab = paste(depart, land, sep = " - "),
+                diff = as.numeric(difftime(firstMig, dep), units = "days"),
+                diff = round(diff,digits=0),
+                taglab = paste(taglab, diff, sep = "; "),
+                taglab = paste(taglab, "d", sep = ""),
+                taglab = paste("REKN", taglab, sep = " "))
 
 ## periods of no data
 # Buque Quemado - only 2 days of data
@@ -68,10 +115,11 @@ gmap <-  get_map(location = c(lon = -69, lat = -52.5), # lon/lat to centre map o
                  source = "google",
                  zoom = 9) # zoom, must be a whole number
 p <- ggmap(gmap)
-p + geom_point(data=filter(recvs, recvProjID == 174), aes(recvLon, recvLat), pch=21, colour = "black", fill = "red", size = 2) + 
-  geom_text(data=filter(recvs, recvProjID == 174), aes(recvLon, recvLat, label = recvDeployName), col = "white", hjust = -0.1, vjust = 0.4, size = 3) + 
-  theme_bw() + labs(title = "Bahia Lomas Stations") +
-  theme(axis.title = element_blank(), legend.position = "bottom", text = element_text(size = 8))
+p + geom_point(data=filter(recvs, recvProjID == 174), aes(recvLon, recvLat), pch=21, colour = "black", fill = "red", size = 3) + 
+  geom_text(data=filter(recvs, recvProjID == 174), aes(recvLon, recvLat, label = recvDeployName), col = "white", hjust = -0.1, vjust = 0.4, size = 5) + 
+  theme_bw() +
+  theme(axis.title = element_blank(), legend.position = "bottom", text = element_text(size = 18))
+ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/ChileMap_google.png", width = 6.5, height = 6.5, dpi = 300)
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/ChileMap_google.pdf")
 
 ## outline map
@@ -137,12 +185,15 @@ hourly <- filter(hourly, motusTagID %in% c(27409, 27413, 27418, 27450, 27451, 27
 hourly <- filter(hourly, !(runID %in% c(27696421, 26775020, 29063715, 29034130, 29034108, 29242281))) ## remove certain runIDs (explained above)
 tmp <- filter(hourly, (tsRound > finalChile-3600 | tsRound > finalChile), !(runLen <= 2 & recvProjID != 174)) ## keep only last hour of Chile data, and remove runLen < 2 with the exception of chile stations
 tmp <- tmp[with(tmp, order(motusTagID, tsRound)),]
+tmp <- filter(tmp, !(recvProjID == 145 & recvDeployName == "St. Helen"))
 
 ## latitude plot
-ggplot(tmp, aes(tsRound, recvDeployLat, col = as.factor(newID), shape = speciesEN, group = motusTagID)) + 
-  geom_point(size = 1) + geom_path(size = 0.5) + theme_bw() +
+ggplot(filter(tmp, tsRound < as.POSIXct("2018-06-15")), aes(tsRound, recvDeployLat, col = as.factor(newID), shape = speciesEN, group = motusTagID)) + 
+  geom_point(size = 4) + geom_path(size = 1) + theme_bw() +
   labs(y = "Latitude", x = NULL, colour = "Tag ID", shape = "Species") + 
-  theme(legend.position = "bottom", text = element_text(size = 8), legend.box = "vertical", legend.title.align = 0.5)
+  theme(legend.position = "bottom", text = element_text(size = 20), legend.box = "vertical", legend.title.align = 0.5) +
+  scale_colour_manual(values=cbbPalette, guide = FALSE)
+ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/LatitudeMigration.png", width = 14.5, height = 8, dpi = 300)
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/LatitudeMigration.pdf")
 ggsave("C:/Users/cryslerz/Documents/RProjects/ChilePlots/LatitudeMigration.pdf")
 
@@ -162,36 +213,51 @@ p + geom_point(data=recvs, aes(recvLon, recvLat), pch=21, colour = "black", fill
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/migMap_google.pdf")
 
 firstMig <- 
+  
 ## outline map
 xlim = c(-125, -25)
 ylim = c(-55, 51)
 setnames(worldmap, c("X","Y","PID","POS","region","subregion"))
 worldmap1 = clipPolys(worldmap, xlim=xlim, ylim=ylim, keepExtra = TRUE)
 ggplot(na.lakes, aes(long, lat)) + coord_map(xlim = xlim, ylim = ylim) +
-  geom_polygon(data = worldmap1,aes(X, Y, group = PID), colour = "grey", 
-               fill = "grey98", size = 0.1) + 
-  geom_polygon(aes(group = group),colour = "grey", fill = "white") + xlab("") + 
+  geom_polygon(data = worldmap1,aes(X, Y, group = PID), colour = "black", 
+               fill = "grey85", size = 0.8) + 
+  geom_polygon(aes(group = group),colour = "black", fill = "white", size = 0.8) + xlab("") + 
   ylab("") + theme_bw() + 
-  geom_label_repel(data = filter(firstMig, motusTagID != 27480), aes(recvDeployLon, recvDeployLat, label = as.factor(firstMig), col = as.factor(newID)),
-                   direction="y", hjust = 0, nudge_x = 30, size = 2, segment.size = 0.2,
-                   nudge_y = 5, show.legend = FALSE) +
-  geom_label_repel(data = filter(firstMig, motusTagID == 27480), aes(recvDeployLon, recvDeployLat, label = as.factor(firstMig), col = as.factor(newID)),
-                   direction="y", hjust = 0, nudge_x = -20, size = 2, segment.size = 0.2,
-                   nudge_y = 5, show.legend = FALSE) +
-  geom_label_repel(data = QCmig, aes(recvDeployLon, recvDeployLat, label = as.factor(firstMig), col = as.factor(newID)),
-                   direction="y", hjust = 0, nudge_x = 10, size = 2, segment.size = 0.2,
-                   nudge_y = 5, show.legend = FALSE) +
-  geom_point(data=recvs, aes(recvLon, recvLat), pch=1, colour = "gray15", size = 0.75) +
+  geom_point(data=recvs, aes(recvLon, recvLat), pch=1, colour = "gray15", size = 3) +
   geom_point(data=tmp, 
              aes(recvDeployLon, recvDeployLat), cex = 2, 
-             pch = 21, size = 0.8) + 
+             pch = 21, size = 4, col = "red") + 
+  geom_point(data=nilesSmall, 
+             aes(recvDeployLon, recvDeployLat), cex = 2, 
+             pch = 21, size = 4, col = "red") + 
+  geom_point(data=QCsmall, 
+             aes(recvDeployLon, recvDeployLat), cex = 2, 
+             pch = 21, size = 4, col = "red") + 
   geom_path(data=tmp, position = position_jitter(w=0.7, h = 0),
-            aes(recvDeployLon, recvDeployLat, group=newID, col = as.factor(newID))) + 
+            aes(recvDeployLon, recvDeployLat, group=newID, col = as.factor(newID)), size = 2) + 
   geom_path(data=QCsmall, position = position_jitter(w=0.7, h = 0),
-            aes(recvDeployLon, recvDeployLat, group=newID, col = as.factor(newID)), linetype = 2) + 
+            aes(recvDeployLon, recvDeployLat, group=newID, col = as.factor(newID)), size = 2, linetype = 2) + 
+  geom_path(data=filter(nilesSmall, motusTagID == 25098), position = position_jitter(w=0.7, h = 0),
+            aes(recvDeployLon, recvDeployLat, group=newID, col = as.factor(newID)), size = 2, linetype = 2) + 
+  geom_label_repel(data = filter(firstMig, motusTagID != 27480), aes(recvDeployLon, recvDeployLat, label = as.factor(taglab)), col = "black",
+                   direction="y", hjust = 0, nudge_x = 30, size = 10, segment.size = 0.8,
+                   nudge_y = 5, show.legend = FALSE) +
+  geom_label_repel(data = filter(firstMig, motusTagID == 27480), aes(recvDeployLon, recvDeployLat, label = as.factor(taglab)), col = "black",
+                   direction="y", hjust = 0, nudge_x = -20, size = 10, segment.size = 0.8,
+                   nudge_y = 5, show.legend = FALSE) +
+  geom_label_repel(data = QCmig, aes(recvDeployLon, recvDeployLat, label = as.factor(taglab)), col = "black",
+                   direction="y", hjust = 0, nudge_x = 10, size = 10, segment.size = 0.8,
+                   nudge_y = 5, show.legend = FALSE) +
+  geom_label_repel(data = filter(nilesMig, motusTagID == 25098), aes(recvDeployLon, recvDeployLat, label = as.factor(taglab)), col = "black",
+                   direction="y", hjust = 0, nudge_x = 10, size = 10, segment.size = 0.8,
+                   nudge_y =1, show.legend = FALSE) +
   labs(color = "Tag ID", title ="ID 27480 = Hudsonian godwit") +
-  theme(axis.title = element_blank(), legend.position = "bottom", text = element_text(size = 8),
-        panel.grid.major = element_line(size = 0.1), axis.ticks = element_line(size = 0.2))
+  theme(axis.title = element_blank(), legend.position = "none", text = element_text(size = 20),
+        panel.grid.major = element_blank(), axis.ticks = element_line(size = 0.2)) +
+  scale_colour_manual(values=cbbPalette)
+
+ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/migMap_outline.png", width = 17, height = 21, dpi = 300)
 ggsave("C:/Users/cryslerz/Documents/RProjects/ChilePlots/migMap_outline.pdf")
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/migMap_outline.pdf")
 
@@ -260,10 +326,10 @@ ggplot(tmp, aes(date, siteLat, col = siteLat, group = newID)) + geom_point(aes(s
 ## plot showing daily detections of select birds, plus offline receiver periods
 tmp <- filter(daily, recvProjID == 174, motusTagID %in% c(27434, 26906, 27410, 27420, 27424, 27436))
 offline$date <- as_date(offline$date)
-ggplot(tmp, aes(date, recvDeployName, col = recvDeployName, group = newID)) + geom_point(aes(size = nHits)) + 
-  geom_path(data = filter(offline, online == "FALSE"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
-  geom_path(data = filter(end, start == "FALSE"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
-  geom_path(data = tmp, aes(date, recvDeployName, group = newID), col = "black") + 
+ggplot(filter(tmp, date > "2018-01-18", date < "2018-02-16"), aes(date, recvDeployName, col = recvDeployName, group = newID)) + geom_point(aes(size = nHits)) + 
+  geom_path(data = filter(offline, online == "FALSE", date > "2018-01-18", date < "2018-02-16"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
+  geom_path(data = filter(end, start == "FALSE", date > "2018-01-18", date < "2018-02-16"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
+  geom_path(data = filter(tmp, date > "2018-01-18", date < "2018-02-16"), aes(date, recvDeployName, group = newID), col = "black") + 
   facet_grid(newID~.) + theme_bw() + 
   labs(y = NULL, x = NULL, colour = "Receiver Stations", size = "Number of Detections") +
   theme(text = element_text(size = 8), legend.direction = "horizontal",
@@ -272,7 +338,22 @@ ggplot(tmp, aes(date, recvDeployName, col = recvDeployName, group = newID)) + ge
   scale_colour_discrete(guide = guide_legend(nrow = 2, title.position = "top"))
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/chileDetections.pdf")
 
-
+tmp <- filter(hourly, recvProjID == 174, motusTagID %in% c(27434, 26906, 27410, 27420, 27424, 27436),
+              tsRound > as.POSIXct("2018-01-18"), tsRound < as.POSIXct("2018-02-16"))
+offline$date <- as_date(offline$date)
+ggplot(filter(tmp), aes(tsRound, recvDeployName, col = recvDeployName, group = newID)) + geom_point(aes(size = nHits)) + 
+#  geom_path(data = filter(offline, online == "FALSE", date > "2018-01-18", date < "2018-02-16"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
+#  geom_path(data = filter(end, start == "FALSE", date > "2018-01-18", date < "2018-02-16"), aes(date, recvDeployName, group = recvDeployName), col = "gray20") +
+  geom_path(data = tmp, aes(tsRound, recvDeployName, group = newID), col = "black") + 
+  facet_grid(newID~.) + theme_bw() + 
+  labs(y = NULL, x = NULL, colour = "Receiver Stations", size = "Number of Detections") +
+  theme(text = element_text(size = 20), legend.direction = "horizontal",
+        legend.position = "bottom", legend.box = "vertical", legend.title.align = 0.5,
+        strip.text.y = element_text(size = 12)) +
+  scale_size(guide = guide_legend(title.position = "top")) +
+  scale_colour_manual(values=cbbPalette, guide = FALSE)
+ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/chileDetections.png", width = 15, height = 8, dpi = 300)
+ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/hourlyChileDetections.pdf")
 
 
 
@@ -316,14 +397,15 @@ ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/violinDetections_notscaled.pd
 tmp <- filter(visits, speciesEN == "Red Knot", date < as.Date("2018-06-01")) 
 tmp <- merge(tmp, offline, all = TRUE)
 tmp <- merge(tmp, end, all = TRUE)
-ggplot(tmp, aes(date, visitLength)) + 
+ggplot(filter(tmp, recvDeployName %in% c("E. El Pantano", "E. Pepita"), date < "2018-05-05", date > "2018-01-18"), aes(date, visitLength)) + 
   geom_bar(stat = "identity", aes(fill = recvDeployName)) +
-  geom_path(data = filter(tmp, start == "FALSE"), aes(x = date, y = 0), col = "black", linetype = "longdash") +
-  geom_path(data = filter(tmp, online == "FALSE"), aes(x = date, y = 0), col = "black", linetype = "longdash") +
+#  geom_path(data = filter(tmp, start == "FALSE", date < "2018-05-05", date > "2018-01-18"), aes(x = date, y = 0), col = "black", linetype = "longdash") +
+#  geom_path(data = filter(tmp, online == "FALSE", date < "2018-05-05", date > "2018-01-18"), aes(x = date, y = 0), col = "black", linetype = "longdash") +
   theme_bw() + facet_grid(recvDeployName~., scales = "free") + 
-  theme(legend.position = "none", text = element_text(size = 8), plot.title = element_text(hjust = 0.5)) +
-  labs(title = "Sum of total time for each tag spent at each station per day", 
-       y = "Cumulative time of all tags at a station per day (mins)", x = NULL)
+  theme(legend.position = "none", text = element_text(size = 20), plot.title = element_text(hjust = 0.5)) +
+  labs(y = "Cumulative time of all tags at a station per day (mins)", x = NULL) +
+  scale_fill_manual(values=cbbPalette)
+ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/histogramDetections.png", width = 14.5, height = 9.5, dpi = 300)
 ggsave("/Users/zoecrysler/Desktop/chilePosterPlots/histogramDetections.pdf")
 
 
